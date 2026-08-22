@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import requests
 import random
 
@@ -12,8 +13,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Symbols Binance actually supports
 CRYPTO_SYMBOLS = {"BTCUSDT", "ETHUSDT"}
+
+trades_db = []
+
+class Trade(BaseModel):
+    symbol: str
+    entry_price: float
+    exit_price: float
+    quantity: float
+    direction: str
 
 @app.get("/")
 def read_root():
@@ -31,8 +40,16 @@ def get_price(symbol: str):
         except Exception as e:
             return {"symbol": symbol, "error": str(e)}
     else:
-        # TEMPORARY mock data for XAUUSD / EURUSD until Day 22 (real forex API)
         mock_base = {"XAUUSD": 1950.0, "EURUSD": 1.09}
         base = mock_base.get(symbol, 100.0)
         fake_price = base + random.uniform(-1, 1)
         return {"symbol": symbol, "price": round(fake_price, 4), "mock": True}
+
+@app.post("/trades")
+def create_trade(trade: Trade):
+    trades_db.append(trade.dict())
+    return {"message": "Trade added", "trade": trade}
+
+@app.get("/trades")
+def list_trades():
+    return trades_db
