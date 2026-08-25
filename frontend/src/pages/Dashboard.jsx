@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import AddTradeForm from "../components/AddTradeForm";
 
 const ASSETS = ["XAUUSD", "BTCUSDT", "EURUSD"];
 
@@ -28,30 +27,27 @@ function Dashboard() {
 
   return (
     <div>
-      <h1>Aurea Dashboard</h1>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "20px" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #444", textAlign: "left" }}>
-            <th style={{ padding: "8px" }}>Symbol</th>
-            <th style={{ padding: "8px" }}>Price</th>
-            <th style={{ padding: "8px" }}>Source</th>
-          </tr>
-        </thead>
-        <tbody>
-          {ASSETS.map((symbol) => {
-            const data = prices[symbol];
-            return (
-              <tr key={symbol} style={{ borderBottom: "1px solid #222" }}>
-                <td style={{ padding: "8px" }}>{symbol}</td>
-                <td style={{ padding: "8px" }}>
-                  {data?.error ? <span style={{ color: "red" }}>Error</span> : `$${data?.price ?? "Loading..."}`}
-                </td>
-                <td style={{ padding: "8px", color: "#888" }}>{data?.mock ? "mock (temp)" : data ? "live" : "-"}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+      <h1 className="text-2xl font-medium mb-6">Aurea Dashboard</h1>
+      <div className="grid grid-cols-3 gap-4">
+        {ASSETS.map((symbol) => {
+          const data = prices[symbol];
+          return (
+            <div key={symbol} className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+              <div className="text-sm text-gray-400">{symbol}</div>
+              <div className="text-xl font-medium mt-1">
+                {data?.error ? (
+                  <span className="text-red-400 text-sm">Error</span>
+                ) : (
+                  `$${data?.price ?? "..."}`
+                )}
+              </div>
+              <div className="text-xs text-gray-500 mt-2">
+                {data?.mock ? "mock (temp)" : data ? "live" : "-"}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

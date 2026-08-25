@@ -16,32 +16,34 @@ function Trades() {
 
   return (
     <div>
-      <h2>Add Trade</h2>
+      <h2 className="text-xl font-medium mb-4">Add Trade</h2>
       <AddTradeForm onTradeAdded={fetchTrades} />
 
-      <h2 style={{ marginTop: "32px" }}>Trade Journal</h2>
-      <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "12px" }}>
-        <thead>
-          <tr style={{ borderBottom: "1px solid #444", textAlign: "left" }}>
-            <th style={{ padding: "8px" }}>Symbol</th>
-            <th style={{ padding: "8px" }}>Entry</th>
-            <th style={{ padding: "8px" }}>Exit</th>
-            <th style={{ padding: "8px" }}>Qty</th>
-            <th style={{ padding: "8px" }}>Direction</th>
-          </tr>
-        </thead>
-        <tbody>
-          {trades.map((t, i) => (
-            <tr key={i} style={{ borderBottom: "1px solid #222" }}>
-              <td style={{ padding: "8px" }}>{t.symbol}</td>
-              <td style={{ padding: "8px" }}>{t.entry_price}</td>
-              <td style={{ padding: "8px" }}>{t.exit_price}</td>
-              <td style={{ padding: "8px" }}>{t.quantity}</td>
-              <td style={{ padding: "8px" }}>{t.direction}</td>
+      <h2 className="text-xl font-medium mt-8 mb-4">Trade Journal</h2>
+      <div className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-800 text-left text-gray-400">
+              <th className="p-3 font-medium">Symbol</th>
+              <th className="p-3 font-medium">Entry</th>
+              <th className="p-3 font-medium">Exit</th>
+              <th className="p-3 font-medium">Qty</th>
+              <th className="p-3 font-medium">Direction</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {trades.map((t, i) => (
+              <tr key={i} className="border-b border-gray-800 last:border-0">
+                <td className="p-3">{t.symbol}</td>
+                <td className="p-3">{t.entry_price}</td>
+                <td className="p-3">{t.exit_price}</td>
+                <td className="p-3">{t.quantity}</td>
+                <td className="p-3 capitalize">{t.direction}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
