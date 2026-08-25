@@ -14,7 +14,6 @@ app.add_middleware(
 )
 
 CRYPTO_SYMBOLS = {"BTCUSDT", "ETHUSDT"}
-
 trades_db = []
 
 class Trade(BaseModel):
@@ -50,6 +49,11 @@ def create_trade(trade: Trade):
     trades_db.append(trade.dict())
     return {"message": "Trade added", "trade": trade}
 
+# QUERY PARAMETERS: /trades?limit=5&direction=long
+# Both are OPTIONAL (have default values) - that's what makes them query params, not path params.
 @app.get("/trades")
-def list_trades():
-    return trades_db
+def list_trades(limit: int = 10, direction: str | None = None):
+    results = trades_db
+    if direction:
+        results = [t for t in results if t["direction"] == direction]
+    return results[-limit:]  # most recent `limit` trades
