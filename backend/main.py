@@ -1,6 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
 import requests
 import random
 
@@ -17,11 +18,20 @@ CRYPTO_SYMBOLS = {"BTCUSDT", "ETHUSDT"}
 trades_db = []
 
 class Trade(BaseModel):
+    symbol: str = Field(..., min_length=3, description="Trading pair symbol, e.g. BTCUSDT")
+    entry_price: float = Field(..., gt=0, description="Must be greater than 0")
+    exit_price: float = Field(..., gt=0, description="Must be greater than 0")
+    quantity: float = Field(..., gt=0, description="Must be greater than 0")
+    direction: Literal["long", "short"]  # ONLY these two values are allowed now
+
+class TradeResponse(BaseModel):
+    id: int
     symbol: str
     entry_price: float
     exit_price: float
     quantity: float
     direction: str
+    pnl: float  # computed field, not something the client sends
 
 @app.get("/")
 def read_root():
@@ -44,16 +54,22 @@ def get_price(symbol: str):
         fake_price = base + random.uniform(-1, 1)
         return {"symbol": symbol, "price": round(fake_price, 4), "mock": True}
 
-@app.post("/trades")
+@app.post("/trades", response_model=TradeResponse)
 def create_trade(trade: Trade):
-    trades_db.append(trade.dict())
-    return {"message": "Trade added", "trade": trade}
+    diff = trade.exit_price - trade.entry_price
+    if trade.direction == "short":
+        diff = -diff
+    pnl = diff * trade.quantity
 
-# QUERY PARAMETERS: /trades?limit=5&direction=long
-# Both are OPTIONAL (have default values) - that's what makes them query params, not path params.
+    record = trade.dict()
+    record["id"] = len(trades_db) + 1
+    record["pnl"] = round(pnl, 2)
+    trades_db.append(record)
+    return record
+
 @app.get("/trades")
 def list_trades(limit: int = 10, direction: str | None = None):
     results = trades_db
     if direction:
         results = [t for t in results if t["direction"] == direction]
-    return results[-limit:]  # most recent `limit` trades
+    return results[-limit:]
