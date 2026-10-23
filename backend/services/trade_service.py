@@ -1,71 +1,98 @@
-from datetime import datetime, timezone
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from models import Trade
+
+PRICE_FIELDS = ("entry_price", "exit_price", "quantity")
 
 
 class TradeNotFoundError(Exception):
     pass
 
 
-_trades: dict[int, dict] = {}
-_next_id = 1
+def _dec(value) -> Decimal:
+    return value if isinstance(value, Decimal) else Decimal(str(value))
 
 
-def calculate_pnl(entry_price: float, exit_price: float, quantity: float, direction: str) -> float:
+def calculate_pnl(entry_price, exit_price, quantity, direction) -> Decimal:
+    entry_price, exit_price, quantity = _dec(entry_price), _dec(exit_price), _dec(quantity)
     diff = exit_price - entry_price
     if direction == "short":
         diff = -diff
     return round(diff * quantity, 2)
 
 
-def create_trade(data: dict) -> dict:
-    global _next_id
-    record = dict(data)
-    record["id"] = _next_id
-    record["pnl"] = calculate_pnl(
-        record["entry_price"], record["exit_price"], record["quantity"], record["direction"]
+def _recalculate(trade: Trade) -> None:
+    trade.pnl = calculate_pnl(trade.entry_price, trade.exit_price, trade.quantity, trade.direction)
+
+
+def create_trade(db: Session, data: dict) -> Trade:
+    trade = Trade(
+        symbol=data["symbol"].upper(),
+        direction=data["direction"],
+        entry_price=_dec(data["entry_price"]),
+        exit_price=_dec(data["exit_price"]),
+        quantity=_dec(data["quantity"]),
+        notes=data.get("notes", ""),
+        pnl=Decimal("0"),
     )
-    record["created_at"] = datetime.now(timezone.utc).isoformat()
-    _trades[_next_id] = record
-    _next_id += 1
-    return record
+    _recalculate(trade)
+    db.add(trade)
+    db.commit()
+    db.refresh(trade)
+    return trade
 
 
-def list_trades(limit: int = 10, direction: str | None = None, symbol: str | None = None) -> list:
-    results = sorted(_trades.values(), key=lambda t: t["id"])
+def list_trades(db: Session, limit: int = 10, direction: str | None = None, symbol: str | None = None) -> list[Trade]:
+    stmt = select(Trade)
     if direction:
-        results = [t for t in results if t["direction"] == direction]
+        stmt = stmt.where(Trade.direction == direction)
     if symbol:
-        results = [t for t in results if t["symbol"] == symbol.upper()]
-    return results[-limit:]
+        stmt = stmt.where(Trade.symbol == symbol.upper())
+    stmt = stmt.order_by(Trade.id.desc()).limit(limit)
+    return list(reversed(db.scalars(stmt).all()))
 
 
-def get_trade(trade_id: int) -> dict:
-    trade = _trades.get(trade_id)
+def get_trade(db: Session, trade_id: int) -> Trade:
+    trade = db.get(Trade, trade_id)
     if trade is None:
         raise TradeNotFoundError(f"Trade {trade_id} not found")
     return trade
 
 
-def update_trade(trade_id: int, changes: dict) -> dict:
-    trade = get_trade(trade_id)
-    trade.update(changes)
-    trade["pnl"] = calculate_pnl(
-        trade["entry_price"], trade["exit_price"], trade["quantity"], trade["direction"]
-    )
+def update_trade(db: Session, trade_id: int, changes: dict) -> Trade:
+    trade = get_trade(db, trade_id)
+    for field, value in changes.items():
+        if value is None:
+            continue
+        if field == "symbol":
+            value = value.upper()
+        elif field in PRICE_FIELDS:
+            value = _dec(value)
+        setattr(trade, field, value)
+    _recalculate(trade)
+    db.commit()
+    db.refresh(trade)
     return trade
 
 
-def replace_trade(trade_id: int, data: dict) -> dict:
-    existing = get_trade(trade_id)
-    record = dict(data)
-    record["id"] = trade_id
-    record["created_at"] = existing["created_at"]
-    record["pnl"] = calculate_pnl(
-        record["entry_price"], record["exit_price"], record["quantity"], record["direction"]
-    )
-    _trades[trade_id] = record
-    return record
+def replace_trade(db: Session, trade_id: int, data: dict) -> Trade:
+    trade = get_trade(db, trade_id)
+    trade.symbol = data["symbol"].upper()
+    trade.direction = data["direction"]
+    trade.entry_price = _dec(data["entry_price"])
+    trade.exit_price = _dec(data["exit_price"])
+    trade.quantity = _dec(data["quantity"])
+    trade.notes = data.get("notes", "")
+    _recalculate(trade)
+    db.commit()
+    db.refresh(trade)
+    return trade
 
 
-def delete_trade(trade_id: int) -> None:
-    get_trade(trade_id)
-    del _trades[trade_id]
+def delete_trade(db: Session, trade_id: int) -> None:
+    trade = get_trade(db, trade_id)
+    db.delete(trade)
+    db.commit()

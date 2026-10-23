@@ -139,7 +139,10 @@ def run_demo():
 
 
 def main():
-    Base.metadata.drop_all(engine)
+    existing = [t for t in inspect(engine).get_table_names() if t in Base.metadata.tables]
+    if existing:
+        print(f"Refusing to run: tables already exist {existing}. This demo drops them.")
+        return
     Base.metadata.create_all(engine)
     try:
         run_demo()

@@ -49,6 +49,27 @@
             "header": [],
             "url": "{{base_url}}/"
           }
+        },
+        {
+          "name": "Database is reachable",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Database ok\", function () { pm.expect(j.database).to.eql(\"ok\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/health/db"
+          }
         }
       ]
     },

@@ -35,6 +35,11 @@ health = [
         JSON,
         check("Message says alive", 'pm.expect(j.message).to.include("alive");'),
     ]),
+    request("Database is reachable", "GET", "/health/db", [
+        status(200),
+        JSON,
+        check("Database ok", 'pm.expect(j.database).to.eql("ok");'),
+    ]),
 ]
 
 prices = [

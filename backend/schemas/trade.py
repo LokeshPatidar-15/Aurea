@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TradeCreate(BaseModel):
@@ -22,6 +23,8 @@ class TradeUpdate(BaseModel):
 
 
 class TradeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     symbol: str
     entry_price: float
@@ -30,4 +33,4 @@ class TradeResponse(BaseModel):
     direction: str
     notes: str
     pnl: float
-    created_at: str
+    created_at: datetime

@@ -1,7 +1,11 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import Session
 
 from config import settings
+from database import get_db
 from errors import register_exception_handlers
 from routers import prices, trades
 
@@ -30,3 +34,12 @@ app.include_router(trades.router)
 @app.get("/", tags=["Health"], summary="Is the backend alive?")
 def read_root():
     return {"message": "Aurea backend is alive", "environment": settings.app_env}
+
+
+@app.get("/health/db", tags=["Health"], summary="Can the backend reach the database?")
+def db_health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"database": "ok"}
