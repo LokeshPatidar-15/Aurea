@@ -1,0 +1,630 @@
+{
+  "info": {
+    "name": "Aurea API",
+    "description": "Automated checks for the Aurea FastAPI backend. Start the backend on port 8010 first.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://127.0.0.1:8010"
+    },
+    {
+      "key": "trade_id",
+      "value": ""
+    }
+  ],
+  "event": [
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Responds within 5 seconds\", function () { pm.expect(pm.response.responseTime).to.be.below(5000); });"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Health",
+      "item": [
+        {
+          "name": "Backend is alive",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Message says alive\", function () { pm.expect(j.message).to.include(\"alive\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/"
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Prices",
+      "item": [
+        {
+          "name": "Price: XAUUSD (mock)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Mock payload is correct\", function () { pm.expect(j.mock).to.eql(true); pm.expect(j.source).to.eql(\"mock\"); pm.expect(j.price).to.be.above(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/XAUUSD"
+          }
+        },
+        {
+          "name": "Price: BTCUSDT (live or provider error)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 or 502 only\", function () { pm.expect([200, 502]).to.include(pm.response.code); });",
+                  "pm.test(\"If live, fields are present\", function () { if (pm.response.code === 200) { const j = pm.response.json(); pm.expect(j.price).to.be.above(0); pm.expect(j).to.have.property(\"change_percent_24h\"); pm.expect(j.mock).to.eql(false); } });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/BTCUSDT"
+          }
+        },
+        {
+          "name": "Price: unsupported symbol",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Detail mentions unsupported\", function () { pm.expect(j.detail).to.include(\"Unsupported\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/DOGEUSDT"
+          }
+        },
+        {
+          "name": "Price: invalid symbol",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 400\", function () { pm.response.to.have.status(400); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Detail is Invalid symbol\", function () { pm.expect(j.detail).to.eql(\"Invalid symbol\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/AB"
+          }
+        },
+        {
+          "name": "History: 5 candles (5m)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const c = pm.response.json();",
+                  "pm.test(\"Five valid candles\", function () { pm.expect(c).to.have.lengthOf(5); c.forEach(function (x) { pm.expect(x.high).to.be.at.least(x.low); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/XAUUSD/history?interval=5m&limit=5"
+          }
+        },
+        {
+          "name": "History: bad interval rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/XAUUSD/history?interval=2m"
+          }
+        },
+        {
+          "name": "History: limit above 500 rejected",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/prices/XAUUSD/history?limit=1000"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Trades CRUD flow (run in order)",
+      "item": [
+        {
+          "name": "Create long trade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Long P&L is 20\", function () { pm.expect(j.pnl).to.eql(20); });",
+                  "pm.collectionVariables.set(\"trade_id\", j.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"entry_price\": 100,\n  \"exit_price\": 110,\n  \"quantity\": 2,\n  \"direction\": \"long\",\n  \"notes\": \"postman long\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create short trade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 201\", function () { pm.response.to.have.status(201); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Short P&L is 20 (price fell)\", function () { pm.expect(j.pnl).to.eql(20); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"XAUUSD\",\n  \"entry_price\": 100,\n  \"exit_price\": 90,\n  \"quantity\": 2,\n  \"direction\": \"short\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get trade by id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Same id returned\", function () { pm.expect(j.id).to.eql(Number(pm.collectionVariables.get(\"trade_id\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades/{{trade_id}}"
+          }
+        },
+        {
+          "name": "List trades",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Contains created trade\", function () { pm.expect(j.map(function (t) { return t.id; })).to.include(Number(pm.collectionVariables.get(\"trade_id\"))); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades?limit=50"
+          }
+        },
+        {
+          "name": "List trades: filter short",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Only short trades\", function () { j.forEach(function (t) { pm.expect(t.direction).to.eql(\"short\"); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades?direction=short"
+          }
+        },
+        {
+          "name": "Patch exit price",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"P&L recalculated to 40\", function () { pm.expect(j.pnl).to.eql(40); pm.expect(j.symbol).to.eql(\"BTCUSDT\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades/{{trade_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"exit_price\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Patch notes only",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Notes changed, P&L untouched\", function () { pm.expect(j.notes).to.eql(\"reviewed in postman\"); pm.expect(j.pnl).to.eql(40); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades/{{trade_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"reviewed in postman\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Replace trade (PUT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 200\", function () { pm.response.to.have.status(200); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Replaced but id kept\", function () { pm.expect(j.id).to.eql(Number(pm.collectionVariables.get(\"trade_id\"))); pm.expect(j.symbol).to.eql(\"EURUSD\"); pm.expect(j.pnl).to.eql(10); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades/{{trade_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"EURUSD\",\n  \"entry_price\": 1.08,\n  \"exit_price\": 1.09,\n  \"quantity\": 1000,\n  \"direction\": \"long\",\n  \"notes\": \"replaced via PUT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete trade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 204\", function () { pm.response.to.have.status(204); });",
+                  "pm.test(\"Body is empty\", function () { pm.expect(pm.response.text()).to.eql(\"\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{base_url}}/trades/{{trade_id}}"
+          }
+        },
+        {
+          "name": "Get deleted trade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });",
+                  "const j = pm.response.json();",
+                  "pm.test(\"Detail says not found\", function () { pm.expect(j.detail).to.include(\"not found\"); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades/{{trade_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Validation and errors",
+      "item": [
+        {
+          "name": "Reject negative quantity",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"entry_price\": 100,\n  \"exit_price\": 110,\n  \"quantity\": -5,\n  \"direction\": \"long\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject invalid direction",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"symbol\": \"BTCUSDT\",\n  \"entry_price\": 100,\n  \"exit_price\": 110,\n  \"quantity\": 2,\n  \"direction\": \"sideways\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject non-integer id",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades/abc"
+          }
+        },
+        {
+          "name": "Patch missing trade",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 404\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/trades/999999",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reject list limit above 200",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status is 422\", function () { pm.response.to.have.status(422); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/trades?limit=500"
+          }
+        }
+      ]
+    }
+  ]
+}
