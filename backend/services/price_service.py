@@ -3,7 +3,9 @@ import time
 
 import requests
 
-BINANCE_URL = "https://api.binance.com/api/v3"
+from config import settings
+
+BINANCE_URL = settings.binance_base_url
 
 CRYPTO_SYMBOLS = {"BTCUSDT", "ETHUSDT"}
 MOCK_BASE = {"XAUUSD": 1950.0, "EURUSD": 1.09}
@@ -35,7 +37,7 @@ def normalize_symbol(symbol: str) -> str:
 
 def _binance_get(path: str, params: dict):
     try:
-        response = requests.get(f"{BINANCE_URL}{path}", params=params, timeout=5)
+        response = requests.get(f"{BINANCE_URL}{path}", params=params, timeout=settings.request_timeout_seconds)
         response.raise_for_status()
         return response.json()
     except requests.exceptions.RequestException as e:
