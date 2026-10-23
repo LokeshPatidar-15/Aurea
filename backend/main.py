@@ -1,15 +1,16 @@
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from services import price_service
+from services import price_service, trade_service
 from services.price_service import (
     InvalidSymbolError,
     PriceServiceError,
     UnsupportedSymbolError,
 )
+from services.trade_service import TradeNotFoundError
 
 app = FastAPI(title="Aurea API")
 
@@ -23,11 +24,9 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type"],
 )
-
-trades_db = []
 
 
 class Trade(BaseModel):
@@ -36,6 +35,16 @@ class Trade(BaseModel):
     exit_price: float = Field(..., gt=0)
     quantity: float = Field(..., gt=0)
     direction: Literal["long", "short"]
+    notes: str = Field("", max_length=500)
+
+
+class TradeUpdate(BaseModel):
+    symbol: str | None = Field(None, min_length=3)
+    entry_price: float | None = Field(None, gt=0)
+    exit_price: float | None = Field(None, gt=0)
+    quantity: float | None = Field(None, gt=0)
+    direction: Literal["long", "short"] | None = None
+    notes: str | None = Field(None, max_length=500)
 
 
 class TradeResponse(BaseModel):
@@ -45,7 +54,9 @@ class TradeResponse(BaseModel):
     exit_price: float
     quantity: float
     direction: str
+    notes: str
     pnl: float
+    created_at: str
 
 
 class PriceResponse(BaseModel):
@@ -73,7 +84,7 @@ def call_service(fn, *args):
         return fn(*args)
     except InvalidSymbolError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    except UnsupportedSymbolError as e:
+    except (UnsupportedSymbolError, TradeNotFoundError) as e:
         raise HTTPException(status_code=404, detail=str(e))
     except PriceServiceError as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -103,23 +114,38 @@ def get_price_legacy(symbol: str):
     return call_service(price_service.get_price, symbol)
 
 
-@app.post("/trades", response_model=TradeResponse)
+@app.post("/trades", response_model=TradeResponse, status_code=201)
 def create_trade(trade: Trade):
-    diff = trade.exit_price - trade.entry_price
-    if trade.direction == "short":
-        diff = -diff
-    pnl = diff * trade.quantity
-
-    record = trade.model_dump()
-    record["id"] = len(trades_db) + 1
-    record["pnl"] = round(pnl, 2)
-    trades_db.append(record)
-    return record
+    return call_service(trade_service.create_trade, trade.model_dump())
 
 
-@app.get("/trades")
-def list_trades(limit: int = 10, direction: str | None = None):
-    results = trades_db
-    if direction:
-        results = [t for t in results if t["direction"] == direction]
-    return results[-limit:]
+@app.get("/trades", response_model=list[TradeResponse])
+def list_trades(
+    limit: int = Query(10, ge=1, le=200),
+    direction: Literal["long", "short"] | None = None,
+    symbol: str | None = None,
+):
+    return trade_service.list_trades(limit, direction, symbol)
+
+
+@app.get("/trades/{trade_id}", response_model=TradeResponse)
+def get_trade(trade_id: int):
+    return call_service(trade_service.get_trade, trade_id)
+
+
+@app.put("/trades/{trade_id}", response_model=TradeResponse)
+def replace_trade(trade_id: int, trade: Trade):
+    return call_service(trade_service.replace_trade, trade_id, trade.model_dump())
+
+
+@app.patch("/trades/{trade_id}", response_model=TradeResponse)
+def update_trade(trade_id: int, changes: TradeUpdate):
+    return call_service(
+        trade_service.update_trade, trade_id, changes.model_dump(exclude_unset=True)
+    )
+
+
+@app.delete("/trades/{trade_id}", status_code=204)
+def delete_trade(trade_id: int):
+    call_service(trade_service.delete_trade, trade_id)
+    return Response(status_code=204)
