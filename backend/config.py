@@ -10,6 +10,8 @@ ENV_FILE = Path(__file__).parent / ".env"
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8", extra="ignore")
 
+    database_url: str
+
     app_name: str = "Aurea API"
     app_env: Literal["development", "production"] = "development"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"

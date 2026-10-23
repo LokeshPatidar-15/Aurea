@@ -82,7 +82,7 @@ FROM practice_trade_pnl;
 INSERT INTO practice_trades (symbol, direction, entry_price, exit_price, quantity)
 VALUES ('BTCUSDT', 'long', 100, 110, -1);
 INSERT INTO practice_trades (symbol, direction, entry_price, exit_price, quantity)
-VALUES ('BTCUSDT', 'sideways', 100, 110, 1);
+VALUES ('BTCUSDT', 'buy', 100, 110, 1);
 
 \echo ''
 \echo '=== 11. TRANSACTION: WHERE bhool gaye to ROLLBACK se bach jao ==='
