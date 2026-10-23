@@ -1,9 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from typing import Literal
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-from typing import Literal
-import requests
-import random
+
+from services import price_service
+from services.price_service import (
+    InvalidSymbolError,
+    PriceServiceError,
+    UnsupportedSymbolError,
+)
 
 app = FastAPI(title="Aurea API")
 
@@ -21,7 +27,6 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 
-CRYPTO_SYMBOLS = {"BTCUSDT", "ETHUSDT"}
 trades_db = []
 
 
@@ -43,31 +48,59 @@ class TradeResponse(BaseModel):
     pnl: float
 
 
+class PriceResponse(BaseModel):
+    symbol: str
+    price: float
+    change_percent_24h: float
+    high_24h: float
+    low_24h: float
+    source: Literal["binance", "mock"]
+    mock: bool
+    timestamp: int
+
+
+class Candle(BaseModel):
+    time: int
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+
+
+def call_service(fn, *args):
+    try:
+        return fn(*args)
+    except InvalidSymbolError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except UnsupportedSymbolError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PriceServiceError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @app.get("/")
 def read_root():
     return {"message": "Aurea backend is alive"}
 
 
-@app.get("/price/{symbol}")
-def get_price(symbol: str, currency: str = "USD"):
-    symbol = symbol.upper()
-    if len(symbol) < 3 or not symbol.isalnum():
-        raise HTTPException(status_code=400, detail="Invalid symbol")
+@app.get("/prices/{symbol}", response_model=PriceResponse)
+def get_prices(symbol: str):
+    return call_service(price_service.get_price, symbol)
 
-    if symbol in CRYPTO_SYMBOLS:
-        url = f"https://api.binance.com/api/v3/ticker/price?symbol={symbol}"
-        try:
-            response = requests.get(url, timeout=5)
-            response.raise_for_status()
-            data = response.json()
-            return {"symbol": symbol, "price": float(data["price"]), "currency": currency}
-        except Exception as e:
-            return {"symbol": symbol, "error": str(e)}
 
-    mock_base = {"XAUUSD": 1950.0, "EURUSD": 1.09}
-    base = mock_base.get(symbol, 100.0)
-    fake_price = base + random.uniform(-1, 1)
-    return {"symbol": symbol, "price": round(fake_price, 4), "currency": currency, "mock": True}
+@app.get("/prices/{symbol}/history", response_model=list[Candle])
+def get_price_history(
+    symbol: str,
+    interval: Literal["1m", "5m", "15m", "1h", "4h", "1d"] = "1m",
+    limit: int = Query(100, ge=1, le=500),
+):
+    return call_service(price_service.get_candles, symbol, interval, limit)
+
+
+@app.get("/price/{symbol}", response_model=PriceResponse, deprecated=True)
+def get_price_legacy(symbol: str):
+    return call_service(price_service.get_price, symbol)
 
 
 @app.post("/trades", response_model=TradeResponse)
