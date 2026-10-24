@@ -13,3 +13,18 @@ def load_candles(symbol: str = "BTCUSDT", timeframe: str = "1m") -> pd.DataFrame
     df = pd.read_csv(path, parse_dates=["open_time"], index_col="open_time")
     df.index = pd.to_datetime(df.index, utc=True)
     return df
+
+
+OHLCV_RULES = {
+    "open": "first",
+    "high": "max",
+    "low": "min",
+    "close": "last",
+    "volume": "sum",
+    "trades": "sum",
+}
+
+
+def resample_ohlcv(df: pd.DataFrame, rule: str) -> pd.DataFrame:
+    out = df.resample(rule).agg(OHLCV_RULES)
+    return out.dropna(subset=["close"])
