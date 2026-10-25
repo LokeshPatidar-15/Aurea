@@ -1,0 +1,12 @@
+{
+  "params": {
+    "max_depth": 3,
+    "min_child_weight": 10,
+    "learning_rate": 0.06
+  },
+  "cv_mean_balanced_accuracy": 0.4384325228964697,
+  "holdout_balanced_accuracy": 0.48482174818830365,
+  "holdout_net_bps_per_trade": -21.579617356308873,
+  "trials": 18,
+  "saved_at": "2026-10-25T12:44:10+00:00"
+}
