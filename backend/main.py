@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from config import settings
 from database import get_db
 from errors import register_exception_handlers
-from routers import prices, trades
+from routers import predict, prices, trades
 
 app = FastAPI(
     title=settings.app_name,
@@ -29,6 +29,7 @@ register_exception_handlers(app)
 
 app.include_router(prices.router)
 app.include_router(trades.router)
+app.include_router(predict.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")
