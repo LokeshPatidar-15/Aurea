@@ -2,3 +2,5 @@ analysis/output/
 notebooks/.ipynb_checkpoints/
 analysis/output/
 notebooks/.ipynb_checkpoints/
+artifacts/*.joblib
+artifacts/*.tmp
