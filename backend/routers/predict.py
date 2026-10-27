@@ -16,9 +16,9 @@ DISCLAIMER = (
 
 
 @router.get("/{symbol}", response_model=PredictionResponse, summary="Latest buy / sell / hold signal from the ML model")
-def get_prediction(symbol: str, timeframe: Literal["1h"] = "1h"):
+def get_prediction(symbol: str, timeframe: Literal["1h"] = "1h", model: Literal["xgboost", "logistic", "lstm"] = "xgboost"):
     try:
-        result = prediction_service.predict(symbol.upper(), timeframe)
+        result = prediction_service.predict(symbol.upper(), timeframe, model)
     except UnsupportedSymbolError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
     except (ModelNotFoundError, NotEnoughDataError) as exc:

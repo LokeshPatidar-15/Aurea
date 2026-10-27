@@ -81,3 +81,50 @@ def fit_lstm(
             break
     model.load_state_dict(best_state)
     return LSTMSignalModel(model, pd.DataFrame(rows), best_epoch)
+
+
+class LSTMEnsemble:
+    def __init__(self, weights: list, prep, n_in: int, hidden: int, length: int):
+        self.weights = weights
+        self.prep = prep
+        self.n_in = n_in
+        self.hidden = hidden
+        self.length = length
+        self._models = None
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state["_models"] = None
+        return state
+
+    def _build(self) -> list:
+        torch.set_num_threads(1)
+        models = []
+        for weights in self.weights:
+            model = LSTMClassifier(self.n_in, self.hidden)
+            model.load_state_dict({name: torch.from_numpy(values.copy()) for name, values in weights.items()})
+            model.eval()
+            models.append(model)
+        return models
+
+    def predict_proba_windows(self, windows: np.ndarray) -> np.ndarray:
+        if self._models is None:
+            self._models = self._build()
+        windows = np.asarray(windows, dtype=float)
+        n, length, features = windows.shape
+        scaled = self.prep.transform(windows.reshape(-1, features)).reshape(n, length, features)
+        tensor = torch.as_tensor(scaled.astype(np.float32))
+        probs = [torch.softmax(batched_logits(model, tensor), dim=1).numpy() for model in self._models]
+        return np.mean(probs, axis=0)
+
+
+def fit_ensemble_final(X: pd.DataFrame, labels: pd.DataFrame, length: int = 48, seeds: tuple = (0, 1, 2), hidden: int = 32,
+                       horizon: int = 12, **fit_kwargs) -> LSTMEnsemble:
+    from analysis.sequences import build_fold_sets
+
+    sets = build_fold_sets(X, labels, np.arange(len(X)), length, horizon)
+    weights = []
+    for seed in seeds:
+        model = fit_lstm(sets, hidden=hidden, seed=seed, log_every=0, **fit_kwargs)
+        weights.append({name: tensor.detach().cpu().numpy().copy() for name, tensor in model.model.state_dict().items()})
+    return LSTMEnsemble(weights, sets["prep"], X.shape[1], hidden, length)

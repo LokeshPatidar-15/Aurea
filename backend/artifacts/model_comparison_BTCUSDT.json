@@ -1,0 +1,32 @@
+{
+  "symbol": "BTCUSDT",
+  "folds": 5,
+  "cost_bps": 20,
+  "passes_gate": false,
+  "models": [
+    {
+      "model": "logistic",
+      "bal.acc": 0.41943956566508495,
+      "mean net bps": -18.82407542094749,
+      "folds > 0": "0/5",
+      "pooled net bps": -19.1715689238381,
+      "pooled p": 0.4231536926147705
+    },
+    {
+      "model": "xgboost",
+      "bal.acc": 0.4479964510855166,
+      "mean net bps": -19.652275082898377,
+      "folds > 0": "0/5",
+      "pooled net bps": -19.741624125879863,
+      "pooled p": 0.5089820359281437
+    },
+    {
+      "model": "lstm (3 seeds)",
+      "bal.acc": 0.43649554828162984,
+      "mean net bps": -18.67848610920901,
+      "folds > 0": "0/5",
+      "pooled net bps": -18.9408979673707,
+      "pooled p": 0.38922155688622756
+    }
+  ]
+}

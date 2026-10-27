@@ -44,3 +44,24 @@ def build_sequence_sets(X: pd.DataFrame, labels: pd.DataFrame, length: int = 48,
             "positions": positions,
         }
     return out, Z
+
+
+def windows_with_mask(Z: np.ndarray, index: pd.DatetimeIndex, positions: np.ndarray, length: int):
+    positions = np.asarray(positions)
+    ok = positions >= length - 1
+    ok[ok] = contiguous_mask(index, positions[ok], length)
+    return make_windows(Z, positions[ok], length), ok
+
+
+def build_fold_sets(X: pd.DataFrame, labels: pd.DataFrame, train_positions, length: int = 48, horizon: int = 12, val_frac: float = 0.15) -> dict:
+    train_positions = np.asarray(train_positions)
+    cut = int(len(train_positions) * (1 - val_frac))
+    fit_pos, val_pos = train_positions[: cut - horizon], train_positions[cut:]
+    prep = make_pipeline(Winsorizer(), StandardScaler()).fit(X.iloc[fit_pos])
+    Z = prep.transform(X).astype(np.float32)
+    y_all = labels["label"].to_numpy()
+    sets = {"prep": prep, "Z": Z, "length": length}
+    for name, pos in (("fit", fit_pos), ("val", val_pos)):
+        windows, ok = windows_with_mask(Z, X.index, pos, length)
+        sets[name] = {"X": windows, "y": y_all[pos][ok].astype(np.int64) + 1}
+    return sets

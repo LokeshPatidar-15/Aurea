@@ -8,7 +8,7 @@ import pandas as pd
 from analysis.cleaning import TIMEFRAME_FREQ, clean_candles
 from analysis.features import compute_features
 from analysis.ml_features import make_features
-from services.model_store import SCHEMA_VERSION, library_versions, read_artifact
+from services.model_store import MODEL_TYPES, SCHEMA_VERSION, library_versions, read_artifact
 
 SUPPORTED_SYMBOLS = ("BTCUSDT", "XAUUSD", "EURUSD")
 INTERVAL_MINUTES = {"15m": 15, "1h": 60}
@@ -32,27 +32,33 @@ class NotEnoughDataError(PredictionError):
     pass
 
 
-def validate_request(symbol: str, timeframe: str) -> None:
+def validate_request(symbol: str, timeframe: str, model_type: str = "xgboost") -> None:
+    if model_type not in MODEL_TYPES:
+        raise UnsupportedSymbolError(f"unsupported model {model_type!r}. Supported: {', '.join(MODEL_TYPES)}")
     if symbol not in SUPPORTED_SYMBOLS:
         raise UnsupportedSymbolError(f"unsupported symbol {symbol!r}. Supported: {', '.join(SUPPORTED_SYMBOLS)}")
     if timeframe not in INTERVAL_MINUTES:
         raise UnsupportedSymbolError(f"unsupported timeframe {timeframe!r}")
 
 
-@lru_cache(maxsize=8)
-def load_artifact(symbol: str, timeframe: str) -> dict:
-    validate_request(symbol, timeframe)
+@lru_cache(maxsize=16)
+def load_artifact(symbol: str, timeframe: str, model_type: str = "xgboost") -> dict:
+    validate_request(symbol, timeframe, model_type)
     try:
-        artifact = read_artifact(symbol, timeframe)
+        artifact = read_artifact(symbol, timeframe, model_type)
     except FileNotFoundError as exc:
         raise ModelNotFoundError(
-            f"no trained model for {symbol} {timeframe}. Run: python3 -m scripts.train_model --symbols {symbol}"
+            f"no trained {model_type} model for {symbol} {timeframe}. Run: python3 -m scripts.train_model --symbols {symbol} --model {model_type}"
         ) from exc
     if artifact.get("schema_version") != SCHEMA_VERSION:
         raise ModelNotFoundError(f"model file for {symbol} {timeframe} has an old format. Retrain it.")
+    if artifact.get("model_type") != model_type:
+        raise ModelNotFoundError(
+            f"the {model_type} file for {symbol} {timeframe} holds a {artifact.get('model_type')} model. Run: python3 -m scripts.train_model --symbols {symbol} --model {model_type}"
+        )
     saved, now = artifact.get("versions", {}), library_versions()
-    for lib in ("scikit-learn", "xgboost", "pandas"):
-        if saved.get(lib) != now.get(lib):
+    for lib in ("scikit-learn", "xgboost", "pandas", "torch"):
+        if lib in saved and saved.get(lib) != now.get(lib):
             warnings.warn(f"{lib} version differs: model saved with {saved.get(lib)}, running {now.get(lib)}")
     return artifact
 
@@ -94,7 +100,16 @@ def predict_from_candles(artifact: dict, candles: pd.DataFrame, now: datetime | 
     if row.isna().any(axis=None):
         raise NotEnoughDataError(f"not enough clean history to build features for {symbol} {timeframe} (need about {LOOKBACK_CANDLES} candles)")
 
-    proba = proba_for(artifact, row)[0]
+    length = artifact.get("sequence_length")
+    if length:
+        window = X[artifact["feature_names"]].iloc[-length:]
+        step = pd.Timedelta(minutes=INTERVAL_MINUTES[timeframe])
+        gaps = pd.Series(window.index).diff().dropna()
+        if len(window) < length or window.isna().any(axis=None) or window.index[-1] != last_time or (gaps != step).any():
+            raise NotEnoughDataError(f"the last {length} candles of {symbol} {timeframe} are not a clean continuous run")
+        proba = artifact["model"].predict_proba_windows(window.to_numpy()[None, :, :])[0]
+    else:
+        proba = proba_for(artifact, row)[0]
     order = artifact["class_order"]
     probabilities = {CLASS_NAMES[c]: round(float(p), 4) for c, p in zip(order, proba)}
     best = int(np.argmax(proba))
@@ -122,7 +137,7 @@ def predict_from_candles(artifact: dict, candles: pd.DataFrame, now: datetime | 
     }
 
 
-def predict(symbol: str, timeframe: str = "1h") -> dict:
-    artifact = load_artifact(symbol, timeframe)
+def predict(symbol: str, timeframe: str = "1h", model_type: str = "xgboost") -> dict:
+    artifact = load_artifact(symbol, timeframe, model_type)
     candles = load_recent_candles(symbol, timeframe)
     return predict_from_candles(artifact, candles)
