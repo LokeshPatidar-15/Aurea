@@ -10,6 +10,8 @@ from errors import register_exception_handlers
 from routers import predict, prices, trades
 
 from routers import paper as paper_router
+from routers import strategy as strategy_router
+from routers import loop as loop_router
 app = FastAPI(
     title=settings.app_name,
     description="Backend for the Aurea trading platform: prices, trades, and (soon) signals.",
@@ -32,6 +34,8 @@ app.include_router(prices.router)
 app.include_router(trades.router)
 app.include_router(predict.router)
 app.include_router(paper_router.router)
+app.include_router(strategy_router.router)
+app.include_router(loop_router.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")
