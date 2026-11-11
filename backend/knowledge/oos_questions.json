@@ -1,0 +1,17 @@
+[
+  {"q": "What is the capital of France?", "kind": "unrelated"},
+  {"q": "Give me a recipe for pasta carbonara.", "kind": "unrelated"},
+  {"q": "Who won the cricket world cup?", "kind": "unrelated"},
+  {"q": "How do I fix a flat bicycle tyre?", "kind": "unrelated"},
+  {"q": "What is the weather in Mumbai today?", "kind": "unrelated"},
+  {"q": "Explain quantum entanglement.", "kind": "unrelated"},
+  {"q": "Write a poem about the ocean.", "kind": "unrelated"},
+  {"q": "Which broker does Aurea use for live trading?", "kind": "near"},
+  {"q": "What is the Sharpe ratio of the Aurea strategy?", "kind": "near"},
+  {"q": "How do I deploy Aurea on AWS?", "kind": "near"},
+  {"q": "What is the database password?", "kind": "near"},
+  {"q": "Does Aurea support Ethereum?", "kind": "near"},
+  {"q": "How many users does Aurea have?", "kind": "near"},
+  {"q": "What is the price of Bitcoin right now?", "kind": "near"},
+  {"q": "How much did my paper account earn today?", "kind": "near"}
+]
