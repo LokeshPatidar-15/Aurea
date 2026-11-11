@@ -14,6 +14,9 @@ from routers import strategy as strategy_router
 from routers import loop as loop_router
 from routers import paper_report as paper_report_router
 from routers import rag as rag_router
+from routers import copilot as copilot_router
+from routers import patterns as patterns_router
+
 app = FastAPI(
     title=settings.app_name,
     description="Backend for the Aurea trading platform: prices, trades, and (soon) signals.",
@@ -38,6 +41,8 @@ app.include_router(predict.router)
 app.include_router(paper_router.router)
 app.include_router(paper_report_router.router)
 app.include_router(rag_router.router)
+app.include_router(copilot_router.router)
+app.include_router(patterns_router.router)
 app.include_router(strategy_router.router)
 app.include_router(loop_router.router)
 
