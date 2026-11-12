@@ -19,6 +19,8 @@ from routers import patterns as patterns_router
 
 from routers import builder as builder_router
 
+from routers import backtest as backtest_router
+
 app = FastAPI(
     title=settings.app_name,
     description="Backend for the Aurea trading platform: prices, trades, and (soon) signals.",
@@ -46,6 +48,7 @@ app.include_router(rag_router.router)
 app.include_router(copilot_router.router)
 app.include_router(patterns_router.router)
 app.include_router(builder_router.router)
+app.include_router(backtest_router.router)
 app.include_router(strategy_router.router)
 app.include_router(loop_router.router)
 
