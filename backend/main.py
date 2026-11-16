@@ -1,3 +1,6 @@
+import asyncio
+from contextlib import asynccontextmanager, suppress
+
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -20,8 +23,29 @@ from routers import patterns as patterns_router
 from routers import builder as builder_router
 
 from routers import backtest as backtest_router
+from routers import ws as ws_router
+from services import price_service
+from services.tick_poller import PollingTicker
+from services.ws_hub import DEFAULT_SYMBOLS, hub
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    hub.max_clients = settings.ws_max_clients
+    hub.meta["poll_seconds"] = settings.ws_poll_seconds
+    task = None
+    if settings.ws_poll_seconds > 0:
+        ticker = PollingTicker(hub, price_service.get_price, DEFAULT_SYMBOLS, max(1.0, settings.ws_poll_seconds))
+        task = asyncio.create_task(ticker.run(), name="tick-poller")
+    yield
+    if task is not None:
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title=settings.app_name,
     description="Backend for the Aurea trading platform: prices, trades, and (soon) signals.",
     version="0.1.0",
@@ -51,6 +75,7 @@ app.include_router(builder_router.router)
 app.include_router(backtest_router.router)
 app.include_router(strategy_router.router)
 app.include_router(loop_router.router)
+app.include_router(ws_router.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")

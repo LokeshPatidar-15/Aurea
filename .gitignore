@@ -13,3 +13,7 @@ build/
 .DS_Store
 backend/data/
 backend/analysis/output/
+
+artifacts/rag_index/
+artifacts/strategy_trials.jsonlbackend_snapshot.zip
+*.zip

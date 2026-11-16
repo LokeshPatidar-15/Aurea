@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     binance_base_url: str = "https://api.binance.com/api/v3"
     request_timeout_seconds: float = 5
+    ws_poll_seconds: float = 5
+    ws_max_clients: int = 100
 
     @property
     def cors_origin_list(self) -> list[str]:
