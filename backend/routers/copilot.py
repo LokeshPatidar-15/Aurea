@@ -8,7 +8,7 @@ from services import copilot_service, rag_service
 router = APIRouter(prefix="/copilot", tags=["Copilot"])
 
 
-@router.post("/ask", response_model=AskOut, summary="Ask a question about Aurea; answers come only from the knowledge base, with sources")
+@router.post("/ask", response_model=AskOut, summary="Ask about Aurea: explanations come from the knowledge base with sources; live numbers come straight from the read-only API")
 def ask(body: AskIn):
     allowed, wait = copilot_service.LIMITER.allow()
     if not allowed:

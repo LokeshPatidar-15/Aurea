@@ -2,7 +2,8 @@ import os
 import time
 
 from rag.copilot import DEFAULT_MODEL, RateLimiter, answer_question
-from services import rag_service
+from rag.live import TOOL_NAMES, route_question
+from services import copilot_live, rag_service
 
 LIMITER = RateLimiter(max_calls=20, per_seconds=60.0, clock=time.monotonic)
 _client: dict = {}
@@ -25,9 +26,13 @@ def llm_settings() -> dict:
 
 def status() -> dict:
     settings = llm_settings()
-    return {"mode": "llm" if settings["client"] else "extractive", "model": settings["model"] if settings["client"] else None, "note": settings["reason"]}
+    return {"mode": "llm" if settings["client"] else "extractive", "model": settings["model"] if settings["client"] else None,
+            "note": settings["reason"], "live_tools": list(TOOL_NAMES)}
 
 
 def ask(question: str) -> dict:
-    settings = llm_settings()
-    return answer_question(question, rag_service.get_index(), client=settings["client"], model=settings["model"])
+    def knowledge_answer() -> dict:
+        settings = llm_settings()
+        return answer_question(question, rag_service.get_index(), client=settings["client"], model=settings["model"])
+
+    return route_question(question, copilot_live.build_backend, knowledge_answer)

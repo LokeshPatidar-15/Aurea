@@ -12,6 +12,8 @@ except Exception as exc:
     sys.exit(1)
 print(f"[{r['mode']} | confidence {r['confidence']} | coverage {r['coverage']}]")
 print(r["answer"])
+for f in r.get("live", []):
+    print(f"  - {f['label']} <- {f['source']}{' (STALE)' if f['stale'] else ''}{'' if f['ok'] else ' (unavailable)'}")
 for s in r["sources"]:
     print(f"  [{s['n']}]{'*' if s['cited'] else ' '} {s['doc']} > {s['title']}")
 if r["llm_error"] or r["fallback_reason"]:
