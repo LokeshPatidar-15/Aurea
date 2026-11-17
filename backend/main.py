@@ -24,8 +24,9 @@ from routers import patterns as patterns_router
 from routers import builder as builder_router
 
 from routers import backtest as backtest_router
+from routers import pipeline as pipeline_router
 from routers import ws as ws_router
-from services import price_service
+from services import candle_pipeline, prediction_service, price_service, strategy_service, trading_loop
 from services.live_feed import PROXY_FEEDS, BinanceWsFeed, make_websockets_connect, rest_fetcher
 from services.tick_poller import PollingTicker
 from services.ws_hub import DEFAULT_SYMBOLS, hub
@@ -53,9 +54,23 @@ async def lifespan(app: FastAPI):
             gate=feed.fallback_wanted if feed else None,
         )
         tasks.append(asyncio.create_task(ticker.run(), name="rest-fallback-poller"))
+    pipe = candle_pipeline.CandlePipeline(
+        hub,
+        cycle=lambda: trading_loop.run_cycle(ingest=True, place_orders=settings.pipeline_place_orders),
+        rule_signal=strategy_service.latest_signal,
+        model_signal=lambda symbol: prediction_service.predict(symbol, "1h", "xgboost"),
+        symbols=DEFAULT_SYMBOLS,
+    )
+    pipe.scheduler_enabled = settings.pipeline_enabled
+    pipe.place_orders = settings.pipeline_place_orders
+    candle_pipeline.set_pipeline(pipe)
+    hub.meta["pipeline"] = pipe.status
+    if settings.pipeline_enabled:
+        tasks.append(asyncio.create_task(pipe.run(), name="candle-pipeline"))
     yield
     for task in tasks:
         task.cancel()
+    candle_pipeline.set_pipeline(None)
     for task in tasks:
         with suppress(asyncio.CancelledError):
             await task
@@ -93,6 +108,7 @@ app.include_router(backtest_router.router)
 app.include_router(strategy_router.router)
 app.include_router(loop_router.router)
 app.include_router(ws_router.router)
+app.include_router(pipeline_router.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")

@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     ws_feed_enabled: bool = True
     ws_idle_grace_seconds: float = 60
     binance_ws_url: str = "wss://stream.binance.com:9443/stream"
+    pipeline_enabled: bool = True
+    pipeline_place_orders: bool = False
 
     @property
     def cors_origin_list(self) -> list[str]:

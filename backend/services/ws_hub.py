@@ -16,6 +16,7 @@ MAX_BAD_MESSAGES = 10
 FUTURE_TOLERANCE_MS = 60_000
 SEND_TIMEOUT_SECONDS = 10.0
 FLUSH_WAIT_SECONDS = 2.0
+MAX_EVENT_CHARS = 8000
 
 
 class ConnectionClosed(Exception):
@@ -78,6 +79,8 @@ class Hub:
         self.rejected: Counter = Counter()
         self.meta: dict = {}
         self.proxies: dict = {}
+        self.latest_signals: dict[str, tuple[dict, str]] = {}
+        self._event_seq = 0
         self._seq = 0
         self._next_id = 0
 
@@ -96,6 +99,7 @@ class Hub:
                 "protocol": PROTOCOL_VERSION,
                 "symbols": list(self.symbols),
                 "proxies": dict(self.proxies),
+                "events": ["tick", "signal", "paper_tick"],
                 "server_time": self._wall_ms(),
             },
         )
@@ -119,6 +123,16 @@ class Hub:
 
     def has_subscribers(self, symbol: str) -> bool:
         return any(symbol in c.symbols and not c.closed for c in self.clients.values())
+
+    def _send_text(self, client: Client, text: str) -> None:
+        if client.closed:
+            return
+        if len(client.control) >= self.max_control_backlog:
+            self.stats["clients_closed_backlog"] += 1
+            self.close_client(client, 1008, "backlog")
+            return
+        client.control.append(text)
+        client.wake.set()
 
     def _send_control(self, client: Client, message: dict) -> None:
         if client.closed:
@@ -194,6 +208,9 @@ class Hub:
                 if entry and now - entry[0]["ts"] <= self.snapshot_max_age_ms:
                     client.pending[symbol] = entry[1]
                     client.wake.set()
+                signal_entry = self.latest_signals.get(symbol)
+                if signal_entry:
+                    self._send_text(client, signal_entry[1])
         else:
             client.symbols -= wanted
             for symbol in wanted:
@@ -257,6 +274,67 @@ class Hub:
                 client.wake.set()
         return True
 
+    def _event_problem(self, event, needs_symbol: bool) -> str | None:
+        if not isinstance(event, dict):
+            return "not_a_dict"
+        if needs_symbol:
+            symbol = event.get("symbol")
+            if not isinstance(symbol, str) or symbol not in self.symbols:
+                return "unknown_symbol"
+            if not isinstance(event.get("fresh"), bool):
+                return "bad_fresh"
+            for key in ("rule", "model"):
+                if event.get(key) is not None and not isinstance(event[key], dict):
+                    return "bad_" + key
+        for key in ("candle_time", "computed_at"):
+            value = event.get(key)
+            if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+                return "bad_time"
+        return None
+
+    def _event_text(self, event: dict, kind: str, prefix: str) -> str | None:
+        self._event_seq += 1
+        out = {**event, "type": kind, "seq": self._event_seq, "server_time": self._wall_ms()}
+        try:
+            text = _dumps(out)
+        except (TypeError, ValueError):
+            self.rejected[prefix + "_not_serialisable"] += 1
+            return None
+        if len(text) > MAX_EVENT_CHARS:
+            self.rejected[prefix + "_too_large"] += 1
+            return None
+        return text
+
+    def publish_signal(self, event: dict) -> bool:
+        problem = self._event_problem(event, True)
+        if problem:
+            self.rejected["signal_" + problem] += 1
+            return False
+        text = self._event_text(event, "signal", "signal")
+        if text is None:
+            return False
+        out = json.loads(text)
+        self.latest_signals[out["symbol"]] = (out, text)
+        self.stats["signals_published"] += 1
+        for client in list(self.clients.values()):
+            if not client.closed and out["symbol"] in client.symbols:
+                self._send_text(client, text)
+        return True
+
+    def publish_paper_tick(self, event: dict) -> bool:
+        problem = self._event_problem(event, False)
+        if problem:
+            self.rejected["paper_tick_" + problem] += 1
+            return False
+        text = self._event_text(event, "paper_tick", "paper_tick")
+        if text is None:
+            return False
+        self.stats["paper_ticks_published"] += 1
+        for client in list(self.clients.values()):
+            if not client.closed:
+                self._send_text(client, text)
+        return True
+
     async def pump(self, client: Client, send) -> None:
         while True:
             await client.wake.wait()
@@ -311,6 +389,10 @@ class Hub:
             "latest": latest,
             "counters": dict(self.stats),
             "ticks_rejected": dict(self.rejected),
+            "signals": {
+                s: {"candle_time": e["candle_time"], "computed_at": e["computed_at"], "fresh": e["fresh"], "rule": (e.get("rule") or {}).get("status"), "model": (e.get("model") or {}).get("signal")}
+                for s, (e, _) in self.latest_signals.items()
+            },
             "meta": self._meta_snapshot(),
         }
 

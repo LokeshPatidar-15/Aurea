@@ -60,6 +60,12 @@ def _already_ordered(symbol: str, signal_time) -> bool:
 
 
 def run_cycle(ingest: bool = True, place_orders: bool = True, symbols=None) -> dict:
+    from services.cycle_lock import run_exclusive
+
+    return run_exclusive(lambda: _run_cycle_unlocked(ingest, place_orders, symbols))
+
+
+def _run_cycle_unlocked(ingest: bool = True, place_orders: bool = True, symbols=None) -> dict:
     symbols = list(symbols or paper_service.SUPPORTED_SYMBOLS)
     log = {"started_at": datetime.now(timezone.utc), "ingest": None, "tick": None, "symbols": {}, "errors": []}
     if ingest:

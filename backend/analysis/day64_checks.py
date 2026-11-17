@@ -466,7 +466,7 @@ def test_static():
         imports = set(re.findall(r"^(?:from|import)\s+([\w\.]+)", src, re.M))
         allowed = {"asyncio", "json", "logging", "math", "time", "collections", "dataclasses"}
         check(f"{name} imports only the standard library", imports <= allowed, str(sorted(imports - allowed)))
-        check(f"{name} has no database or ledger access", not re.search(r"paper_|sqlalchemy|session|\.execute\(", src))
+        check(f"{name} has no database or ledger access", not re.search(r"paper_(?!tick)|sqlalchemy|session|\.execute\(", src))
     for name in ("services/ws_hub.py", "services/tick_poller.py", "routers/ws.py", "main.py", "config.py"):
         try:
             py_compile.compile(str(ROOT / name), doraise=True)
