@@ -77,6 +77,7 @@ class Hub:
         self.stats: Counter = Counter()
         self.rejected: Counter = Counter()
         self.meta: dict = {}
+        self.proxies: dict = {}
         self._seq = 0
         self._next_id = 0
 
@@ -94,6 +95,7 @@ class Hub:
                 "type": "hello",
                 "protocol": PROTOCOL_VERSION,
                 "symbols": list(self.symbols),
+                "proxies": dict(self.proxies),
                 "server_time": self._wall_ms(),
             },
         )
@@ -240,6 +242,12 @@ class Hub:
         change = tick.get("change_percent_24h")
         if isinstance(change, (int, float)) and not isinstance(change, bool) and math.isfinite(change):
             out["change_percent_24h"] = float(change)
+        proxy = tick.get("proxy")
+        if isinstance(proxy, bool):
+            out["proxy"] = proxy
+        feed_symbol = tick.get("feed_symbol")
+        if isinstance(feed_symbol, str) and 3 <= len(feed_symbol) <= 20 and feed_symbol.isascii() and feed_symbol.isalnum():
+            out["feed_symbol"] = feed_symbol
         text = _dumps(out)
         self.latest[out["symbol"]] = (out, text)
         self.stats["ticks_published"] += 1
@@ -268,6 +276,17 @@ class Hub:
             if client.closed:
                 return
 
+    def _meta_snapshot(self) -> dict:
+        out = {}
+        for key, value in self.meta.items():
+            if callable(value):
+                try:
+                    value = value()
+                except Exception:
+                    value = {"error": "status unavailable"}
+            out[key] = value
+        return out
+
     def status(self) -> dict:
         now = self._wall_ms()
         subscriptions = {s: 0 for s in self.symbols}
@@ -292,7 +311,7 @@ class Hub:
             "latest": latest,
             "counters": dict(self.stats),
             "ticks_rejected": dict(self.rejected),
-            "meta": dict(self.meta),
+            "meta": self._meta_snapshot(),
         }
 
 

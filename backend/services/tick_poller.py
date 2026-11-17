@@ -19,19 +19,27 @@ def tick_from_price(raw: dict) -> dict:
 
 
 class PollingTicker:
-    def __init__(self, hub, fetch, symbols, interval_s: float, sleep=asyncio.sleep, to_thread=asyncio.to_thread):
+    def __init__(self, hub, fetch, symbols, interval_s: float, sleep=asyncio.sleep, to_thread=asyncio.to_thread, to_tick=None, gate=None):
         self.hub = hub
         self.fetch = fetch
         self.symbols = tuple(symbols)
         self.interval_s = interval_s
         self._sleep = sleep
         self._to_thread = to_thread
+        self._to_tick = to_tick or tick_from_price
+        self._gate = gate
+        self.skipped_gated = 0
         self.failures: dict[str, int] = {s: 0 for s in self.symbols}
         self.last_error_type: dict[str, str] = {}
         self.cycles = 0
         self.skipped_no_subscribers = 0
 
     async def poll_once(self) -> tuple[int, int]:
+        if self._gate is not None and not self._gate():
+            self.skipped_gated += 1
+            self.cycles += 1
+            self.hub.meta["poller"] = self.status()
+            return 0, 0
         attempted = 0
         failed = 0
         for symbol in self.symbols:
@@ -41,7 +49,7 @@ class PollingTicker:
             attempted += 1
             try:
                 raw = await self._to_thread(self.fetch, symbol)
-                ok = self.hub.publish(tick_from_price(raw))
+                ok = self.hub.publish(self._to_tick(raw))
             except Exception as exc:
                 ok = False
                 self.last_error_type[symbol] = type(exc).__name__
@@ -65,6 +73,7 @@ class PollingTicker:
         return {
             "interval_s": self.interval_s,
             "cycles": self.cycles,
+            "skipped_gated": self.skipped_gated,
             "consecutive_failures": dict(self.failures),
             "last_error_type": dict(self.last_error_type),
         }

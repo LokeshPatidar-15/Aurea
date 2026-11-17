@@ -69,7 +69,7 @@ async def main():
         ticks = await collect(ws, "tick", 3, poll * 3 + 10, "BTCUSDT")
         check("3 BTC ticks arrive", len(ticks) == 3, f"got {len(ticks)} in about {poll * 3 + 10:.0f}s max")
         if ticks:
-            check("ticks are well formed and not mock", all(t["symbol"] == "BTCUSDT" and t["price"] > 0 and t["mock"] is False and t["source"] == "binance-poll" for t in ticks), str(ticks[0]))
+            check("ticks are well formed and not mock", all(t["symbol"] == "BTCUSDT" and t["price"] > 0 and t["mock"] is False and t["source"].startswith("binance") for t in ticks), str(ticks[0]))
             check("seq and ts never go backwards", all(b["seq"] > a["seq"] and b["ts"] >= a["ts"] for a, b in zip(ticks, ticks[1:])))
             print(f"  info: first tick {ticks[0]['price']} at seq {ticks[0]['seq']}, gap between ticks about {(ticks[-1]['ts'] - ticks[0]['ts']) / max(1, len(ticks) - 1) / 1000:.1f}s")
             rest = requests.get(HTTP + "/prices/BTCUSDT", timeout=15).json()["price"]
@@ -81,8 +81,8 @@ async def main():
         await ws.send(json.dumps({"action": "subscribe", "symbols": ["XAUUSD", "EURUSD"]}))
         demo = await collect(ws, "tick", 4, poll * 2 + 10)
         xau = [t for t in demo if t["symbol"] == "XAUUSD"]
-        check("XAUUSD ticks arrive and are flagged mock=true", bool(xau) and all(t["mock"] is True and t["source"] == "mock-poll" for t in xau))
-        print("  info: gold and euro ticks are random demo numbers until Day 65 adds a real feed. The UI must show them as demo.")
+        check("XAUUSD ticks arrive, real data via the PAXG proxy, flagged proxy=true", bool(xau) and all(t["mock"] is False and t.get("proxy") is True for t in xau))
+        print("  info: since Day 65 gold and euro ticks come from the PAXGUSDT and EURUSDT proxies (flagged proxy=true).")
 
         print("protocol errors keep the connection open")
         await ws.send("not json")
@@ -165,7 +165,7 @@ async def main():
     published_now = st["counters"].get("ticks_published", 0)
     await asyncio.sleep(poll + 3)
     st2 = requests.get(HTTP + "/ws/status", timeout=10).json()
-    check("with no subscribers the poller stops fetching (no ticks published while idle)", st2["counters"].get("ticks_published", 0) == published_now, f"{published_now} -> {st2['counters'].get('ticks_published', 0)}")
+    print("  info: since Day 65 the exchange feed stays open for a grace period after the last client leaves, so the idle check moved to day65_ws_check.py")
     check("ticks were published during this run", published_now > published0, f"{published0} -> {published_now}")
     print("  rejected ticks by reason: " + (json.dumps(st2["ticks_rejected"]) if st2["ticks_rejected"] else "none"))
     print("  poller: " + json.dumps(st2["meta"].get("poller", {})))

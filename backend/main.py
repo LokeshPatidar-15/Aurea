@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
+import requests
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -25,6 +26,7 @@ from routers import builder as builder_router
 from routers import backtest as backtest_router
 from routers import ws as ws_router
 from services import price_service
+from services.live_feed import PROXY_FEEDS, BinanceWsFeed, make_websockets_connect, rest_fetcher
 from services.tick_poller import PollingTicker
 from services.ws_hub import DEFAULT_SYMBOLS, hub
 
@@ -33,13 +35,28 @@ from services.ws_hub import DEFAULT_SYMBOLS, hub
 async def lifespan(app: FastAPI):
     hub.max_clients = settings.ws_max_clients
     hub.meta["poll_seconds"] = settings.ws_poll_seconds
-    task = None
+    hub.proxies = dict(PROXY_FEEDS)
+    feed = None
+    tasks = []
+    if settings.ws_feed_enabled:
+        feed = BinanceWsFeed(hub, settings.binance_ws_url, make_websockets_connect(), idle_grace_s=settings.ws_idle_grace_seconds)
+        hub.meta["feed"] = feed.status
+        tasks.append(asyncio.create_task(feed.run(), name="binance-ws-feed"))
     if settings.ws_poll_seconds > 0:
-        ticker = PollingTicker(hub, price_service.get_price, DEFAULT_SYMBOLS, max(1.0, settings.ws_poll_seconds))
-        task = asyncio.create_task(ticker.run(), name="tick-poller")
+        fetch = rest_fetcher(requests.get, settings.binance_base_url, settings.request_timeout_seconds)
+        ticker = PollingTicker(
+            hub,
+            fetch,
+            DEFAULT_SYMBOLS,
+            max(1.0, settings.ws_poll_seconds),
+            to_tick=lambda raw: raw,
+            gate=feed.fallback_wanted if feed else None,
+        )
+        tasks.append(asyncio.create_task(ticker.run(), name="rest-fallback-poller"))
     yield
-    if task is not None:
+    for task in tasks:
         task.cancel()
+    for task in tasks:
         with suppress(asyncio.CancelledError):
             await task
 

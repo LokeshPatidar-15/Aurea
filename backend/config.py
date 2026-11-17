@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = 5
     ws_poll_seconds: float = 5
     ws_max_clients: int = 100
+    ws_feed_enabled: bool = True
+    ws_idle_grace_seconds: float = 60
+    binance_ws_url: str = "wss://stream.binance.com:9443/stream"
 
     @property
     def cors_origin_list(self) -> list[str]:
