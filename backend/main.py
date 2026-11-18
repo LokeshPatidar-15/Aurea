@@ -25,6 +25,7 @@ from routers import builder as builder_router
 
 from routers import backtest as backtest_router
 from routers import pipeline as pipeline_router
+from routers import portfolio as portfolio_router
 from routers import ws as ws_router
 from services import candle_pipeline, prediction_service, price_service, strategy_service, trading_loop
 from services.live_feed import PROXY_FEEDS, BinanceWsFeed, make_websockets_connect, rest_fetcher
@@ -109,6 +110,7 @@ app.include_router(strategy_router.router)
 app.include_router(loop_router.router)
 app.include_router(ws_router.router)
 app.include_router(pipeline_router.router)
+app.include_router(portfolio_router.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")
