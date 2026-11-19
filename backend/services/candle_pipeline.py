@@ -150,8 +150,10 @@ class CandlePipeline:
         cycle_timeout_s: float = CYCLE_TIMEOUT_SECONDS,
         min_gap_refresh_s: float = MIN_GAP_REFRESH_SECONDS,
         min_gap_full_s: float = MIN_GAP_FULL_SECONDS,
+        record=None,
     ):
         self.hub = hub
+        self._record = record
         self._cycle = cycle
         self._rule_signal = rule_signal
         self._model_signal = model_signal
@@ -247,6 +249,11 @@ class CandlePipeline:
                 "model_error": event["model_error"],
                 "published": published,
             }
+        if self._record is not None:
+            try:
+                summary["recorded"] = await self._to_thread(self._record, list(events.values()))
+            except Exception as exc:
+                summary["errors"].append(f"record: {type(exc).__name__}")
         if mode == "full" and summary["cycle"] is not None and not summary["cycle"]["skipped"]:
             c = summary["cycle"]
             self.hub.publish_paper_tick(

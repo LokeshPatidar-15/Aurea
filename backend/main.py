@@ -26,8 +26,9 @@ from routers import builder as builder_router
 from routers import backtest as backtest_router
 from routers import pipeline as pipeline_router
 from routers import portfolio as portfolio_router
+from routers import signals as signals_router
 from routers import ws as ws_router
-from services import candle_pipeline, prediction_service, price_service, strategy_service, trading_loop
+from services import candle_pipeline, prediction_service, price_service, signal_service, strategy_service, trading_loop
 from services.live_feed import PROXY_FEEDS, BinanceWsFeed, make_websockets_connect, rest_fetcher
 from services.tick_poller import PollingTicker
 from services.ws_hub import DEFAULT_SYMBOLS, hub
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
         rule_signal=strategy_service.latest_signal,
         model_signal=lambda symbol: prediction_service.predict(symbol, "1h", "xgboost"),
         symbols=DEFAULT_SYMBOLS,
+        record=signal_service.record_events,
     )
     pipe.scheduler_enabled = settings.pipeline_enabled
     pipe.place_orders = settings.pipeline_place_orders
@@ -111,6 +113,7 @@ app.include_router(loop_router.router)
 app.include_router(ws_router.router)
 app.include_router(pipeline_router.router)
 app.include_router(portfolio_router.router)
+app.include_router(signals_router.router)
 
 
 @app.get("/", tags=["Health"], summary="Is the backend alive?")

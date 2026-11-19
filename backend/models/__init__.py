@@ -6,3 +6,4 @@ from models.user import User
 __all__ = ["Feature", "PriceHistory", "Trade", "User"]
 
 from models.paper import PaperFill, PaperPosition  # noqa: E402,F401
+from models.signal_log import SignalLog  # noqa: E402,F401
